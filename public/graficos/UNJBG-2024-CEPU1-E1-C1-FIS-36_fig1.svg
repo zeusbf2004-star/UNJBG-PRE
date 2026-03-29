@@ -1,0 +1,42 @@
+<svg viewBox="-80 -80 405 350" xmlns="http://www.w3.org/2000/svg">
+  <!-- Ceiling -->
+  <line x1="20" y1="30" x2="220" y2="30" stroke="currentColor" stroke-width="2" />
+  <!-- Hatching for ceiling -->
+  <g stroke="currentColor" stroke-width="1.5">
+    <line x1="20" y1="30" x2="30" y2="20" />
+    <line x1="35" y1="30" x2="45" y2="20" />
+    <line x1="50" y1="30" x2="60" y2="20" />
+    <line x1="65" y1="30" x2="75" y2="20" />
+    <line x1="80" y1="30" x2="90" y2="20" />
+    <line x1="95" y1="30" x2="105" y2="20" />
+    <line x1="110" y1="30" x2="120" y2="20" />
+    <line x1="125" y1="30" x2="135" y2="20" />
+    <line x1="140" y1="30" x2="150" y2="20" />
+    <line x1="155" y1="30" x2="165" y2="20" />
+    <line x1="170" y1="30" x2="180" y2="20" />
+    <line x1="185" y1="30" x2="195" y2="20" />
+    <line x1="200" y1="30" x2="210" y2="20" />
+    <line x1="215" y1="30" x2="225" y2="20" />
+  </g>
+  
+  <!-- Strings -->
+  <line x1="30" y1="30" x2="130" y2="90" stroke="currentColor" stroke-width="2" />
+  <line x1="190" y1="30" x2="130" y2="90" stroke="currentColor" stroke-width="2" />
+  <line x1="130" y1="90" x2="130" y2="140" stroke="currentColor" stroke-width="2" />
+  
+  <!-- Block -->
+  <rect x="115" y="140" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" />
+  
+  <!-- Angles -->
+  <!-- 30 degree angle on the left -->
+  <path d="M 70 30 A 40 40 0 0 0 63 50" fill="none" stroke="currentColor" stroke-width="1.5" />
+  <text x="85" y="55" fill="currentColor" font-family="sans-serif" font-size="16">30°</text>
+  
+  <!-- 60 degree angle on the right -->
+  <path d="M 150 30 A 40 40 0 0 1 165 55" fill="none" stroke="currentColor" stroke-width="1.5" />
+  <text x="140" y="50" fill="currentColor" font-family="sans-serif" font-size="16">60°</text>
+  
+  <!-- Labels -->
+  <text x="65" y="85" fill="currentColor" font-family="sans-serif" font-size="18">T1</text>
+  <text x="180" y="85" fill="currentColor" font-family="sans-serif" font-size="18">T2</text>
+</svg>

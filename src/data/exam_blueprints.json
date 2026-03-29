@@ -1,0 +1,20 @@
+{
+  "fase1_2": {
+    "canal1": { "RM": 14, "RV": 14, "RN": 8, "AA": 4, "GT": 2, "LEN": 4, "BIO": 8, "FIS": 2, "QUI": 4 },
+    "canal2": { "RM": 14, "RV": 14, "RN": 8, "AA": 6, "GT": 4, "LOG": 4, "LEN": 2, "FIS": 4, "QUI": 4 },
+    "canal3": { "RM": 14, "RV": 14, "RN": 8, "AA": 2, "LEN": 5, "LIT": 4, "HIS": 5, "GEO": 4, "ECO": 4 },
+    "canal4": { "RM": 14, "RV": 14, "RN": 8, "AA": 4, "GT": 2, "LEN": 4, "HIS": 4, "GEO": 4, "ECO": 6 }
+  },
+  "extraordinario": {
+    "canal1": { "RM": 15, "RV": 15, "RN": 10 },
+    "canal2": { "RM": 15, "RV": 15, "RN": 10 },
+    "canal3": { "RM": 15, "RV": 15, "RN": 10 },
+    "canal4": { "RM": 15, "RV": 15, "RN": 10 }
+  },
+  "cepu": {
+    "canal1": { "RM": 8, "GT": 5, "LEN": 5, "BIO": 12, "RV": 8, "AA": 6, "FIS": 6, "QUI": 9, "RN": 1 },
+    "canal2": { "RM": 7, "GT": 10, "LOG": 7, "LEN": 6, "RV": 7, "AA": 9, "FIS": 7, "QUI": 6, "RN": 1 },
+    "canal3": { "RM": 8, "LEN": 8, "LIT": 7, "ECO": 7, "RV": 8, "AA": 7, "HIS": 7, "GEO": 7, "RN": 1 },
+    "canal4": { "RM": 8, "GT": 7, "LEN": 6, "ECO": 9, "RV": 8, "AA": 8, "HIS": 6, "GEO": 7, "RN": 1 }
+  }
+}

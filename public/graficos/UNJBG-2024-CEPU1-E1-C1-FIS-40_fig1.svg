@@ -1,0 +1,46 @@
+<svg viewBox="-85 -60 645 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Top wire -->
+  <line x1="80" y1="50" x2="190" y2="50" stroke="currentColor" stroke-width="2" />
+  <rect x="190" y="40" width="40" height="20" fill="none" stroke="currentColor" stroke-width="2" />
+  <text x="210" y="80" text-anchor="middle" fill="currentColor" font-family="sans-serif" font-size="16">20 Ω</text>
+  <line x1="230" y1="50" x2="380" y2="50" stroke="currentColor" stroke-width="2" />
+
+  <!-- Right wire -->
+  <line x1="380" y1="50" x2="380" y2="70" stroke="currentColor" stroke-width="2" />
+  
+  <!-- 62V Capacitor (Right) -->
+  <!-- Modificado para ser de placas iguales (condensador) -->
+  <line x1="350" y1="70" x2="410" y2="70" stroke="currentColor" stroke-width="3" />
+  <line x1="350" y1="80" x2="410" y2="80" stroke="currentColor" stroke-width="3" />
+  <!-- Asegurando suficiente ancho en el viewBox para el texto 62 V -->
+  <text x="420" y="80" text-anchor="start" fill="currentColor" font-family="sans-serif" font-size="16">62 V</text>
+  
+  <line x1="380" y1="80" x2="380" y2="120" stroke="currentColor" stroke-width="2" />
+  
+  <!-- 2 ohm resistor (zigzag) -->
+  <polyline points="380,120 365,130 395,140 365,150 395,160 380,170" fill="none" stroke="currentColor" stroke-width="2" />
+  <text x="355" y="150" text-anchor="end" fill="currentColor" font-family="sans-serif" font-size="16">2 Ω</text>
+  <line x1="380" y1="170" x2="380" y2="200" stroke="currentColor" stroke-width="2" />
+
+  <!-- Bottom wire -->
+  <line x1="380" y1="200" x2="230" y2="200" stroke="currentColor" stroke-width="2" />
+  <rect x="190" y="190" width="40" height="20" fill="none" stroke="currentColor" stroke-width="2" />
+  <text x="210" y="235" text-anchor="middle" fill="currentColor" font-family="sans-serif" font-size="16">8 Ω</text>
+  <line x1="190" y1="200" x2="80" y2="200" stroke="currentColor" stroke-width="2" />
+
+  <!-- Left wire -->
+  <line x1="80" y1="200" x2="80" y2="170" stroke="currentColor" stroke-width="2" />
+  
+  <!-- 4 ohm resistor (zigzag) -->
+  <polyline points="80,170 65,160 95,150 65,140 95,130 80,120" fill="none" stroke="currentColor" stroke-width="2" />
+  <text x="55" y="150" text-anchor="end" fill="currentColor" font-family="sans-serif" font-size="16">4 Ω</text>
+  
+  <line x1="80" y1="120" x2="80" y2="100" stroke="currentColor" stroke-width="2" />
+  
+  <!-- 300V Battery (Left) -->
+  <line x1="60" y1="100" x2="100" y2="100" stroke="currentColor" stroke-width="4" />
+  <line x1="50" y1="90" x2="110" y2="90" stroke="currentColor" stroke-width="2" />
+  <text x="120" y="95" text-anchor="start" fill="currentColor" font-family="sans-serif" font-size="16">300 V</text>
+  
+  <line x1="80" y1="90" x2="80" y2="50" stroke="currentColor" stroke-width="2" />
+</svg>
