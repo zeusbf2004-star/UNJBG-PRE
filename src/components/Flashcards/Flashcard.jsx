@@ -34,9 +34,19 @@ export default function Flashcard({ card, isFlipped, onFlip }) {
 
     return (
         <div 
-            className="w-full max-w-2xl mx-auto h-96 group cursor-pointer relative" 
+            className="w-full max-w-2xl mx-auto h-96 group cursor-pointer relative outline-none focus-within:ring-4 focus-within:ring-indigo-500/20 rounded-2xl" 
             style={{ perspective: '1200px', WebkitPerspective: '1200px' }} 
             onClick={onFlip}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onFlip();
+                }
+            }}
+            tabIndex="0"
+            role="button"
+            aria-label={isFlipped ? "Ver pregunta" : "Ver respuesta"}
+            aria-pressed={isFlipped}
         >
             <div
                 className="w-full h-full relative transition-transform duration-700 ease-in-out"

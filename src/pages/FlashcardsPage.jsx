@@ -16,18 +16,48 @@ export default function FlashcardsPage() {
         setIsFlipped(false);
     }
 
-    // Handle spacebar to flip
+    // Handle spacebar to flip and numbers to rate
     useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.code === 'Space' && !isFinished && !isLoading) {
+        const handleKeyDown = async (e) => {
+            if (isFinished || isLoading) return;
+
+            if (e.code === 'Space') {
                 e.preventDefault();
                 setIsFlipped(prev => !prev);
+                return;
+            }
+
+            if (isFlipped) {
+                switch (e.key) {
+                    case '1':
+                        e.preventDefault();
+                        await processAnswer(0);
+                        setIsFlipped(false);
+                        break;
+                    case '2':
+                        e.preventDefault();
+                        await processAnswer(3);
+                        setIsFlipped(false);
+                        break;
+                    case '3':
+                        e.preventDefault();
+                        await processAnswer(4);
+                        setIsFlipped(false);
+                        break;
+                    case '4':
+                        e.preventDefault();
+                        await processAnswer(5);
+                        setIsFlipped(false);
+                        break;
+                    default:
+                        break;
+                }
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isFinished, isLoading]);
+    }, [isFinished, isLoading, isFlipped, processAnswer]);
 
     const handleFlip = () => {
         setIsFlipped(prev => !prev);

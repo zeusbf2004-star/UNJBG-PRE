@@ -12,9 +12,17 @@ service cloud.firestore {
       );
     }
 
-    // Colección examenes: Todos pueden leer. Solo admin puede escribir.
+    // Función auxiliar para saber si es Premium
+    function isPremium() {
+      return request.auth != null && (
+        exists(/databases/$(database)/documents/user_scores/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/user_scores/$(request.auth.uid)).data.isPremium == true
+      );
+    }
+
+    // Colección examenes: Acceso a exámenes gratuitos, o todos si es premium/admin
     match /examenes/{document=**} {
-      allow read: if true;
+      allow read: if isAdmin() || (resource.data.isPremium != true) || isPremium();
       allow write: if isAdmin();
     }
 
