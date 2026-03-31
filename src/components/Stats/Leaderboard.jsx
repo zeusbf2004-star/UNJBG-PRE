@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
 export default function Leaderboard() {
@@ -9,17 +9,35 @@ export default function Leaderboard() {
     useEffect(() => {
         const fetchLeaderboard = async () => {
             try {
+                // 1. Obtener los 10 con más puntos
                 const q = query(
                     collection(db, 'user_scores'),
                     orderBy('puntos_totales', 'desc'),
                     limit(10)
                 );
-                const snapshot = await getDocs(q);
-                const users = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                setTopUsers(users);
+                const scoresSnapshot = await getDocs(q);
+                
+                // 2. Para cada usuario del top, buscar su perfil en 'users'
+                const usersWithProfile = await Promise.all(
+                    scoresSnapshot.docs.map(async (scoreDoc) => {
+                        const scoreData = scoreDoc.data();
+                        const userId = scoreDoc.id;
+                        
+                        // Intentar obtener el perfil real de 'users'
+                        const profileDoc = await getDoc(doc(db, 'users', userId));
+                        const profileData = profileDoc.exists() ? profileDoc.data() : {};
+                        
+                        return {
+                            id: userId,
+                            ...scoreData,
+                            // Priorizar datos de 'users', sino usar fallback de 'user_scores' por compatibilidad
+                            displayName: profileData.displayName || scoreData.displayName || 'Estudiante',
+                            photoURL: profileData.photoURL || scoreData.photoURL || null
+                        };
+                    })
+                );
+
+                setTopUsers(usersWithProfile);
             } catch (error) {
                 console.error("Error al cargar el leaderboard:", error);
             } finally {

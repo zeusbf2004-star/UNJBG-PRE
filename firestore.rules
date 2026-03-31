@@ -20,6 +20,18 @@ service cloud.firestore {
       );
     }
 
+    // Colección users: Identidad y Roles
+    match /users/{userId} {
+      // Cualquier usuario autenticado puede ver el perfil básico de otros (para Leaderboard)
+      allow read: if request.auth != null;
+      // Solo el Admin puede cambiar el rol. El usuario puede actualizar sus propios datos de perfil.
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (
+        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])) ||
+        isAdmin()
+      );
+    }
+
     // Colección examenes: Acceso a exámenes gratuitos, o todos si es premium/admin
     match /examenes/{document=**} {
       allow read: if isAdmin() || (resource.data.isPremium != true) || isPremium();
@@ -46,7 +58,7 @@ service cloud.firestore {
 
     // Estadísticas de usuario: Solo el usuario dueño puede leer/escribir
     match /user_stats/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
     // Perfil de gamificación y suscripción: El usuario lee/escribe el suyo, Admin lee todo

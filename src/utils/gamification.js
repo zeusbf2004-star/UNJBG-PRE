@@ -63,9 +63,7 @@ export const updatePoints = async (userId, { puntos, curso, tipo, desglose = {},
         racha_actual: 0,
         ultima_actividad: null,
         titulos: [],
-        nivel: 'Novato',
-        displayName: metadata.displayName || 'Estudiante',
-        photoURL: metadata.photoURL || null
+        nivel: 'Novato'
     };
 
     if (userDoc.exists()) {
@@ -123,9 +121,7 @@ export const updatePoints = async (userId, { puntos, curso, tipo, desglose = {},
         titulos: nuevosTitulos,
         stats_por_curso: stats_curso,
         stats_por_tema: stats_tema,
-        fecha_actualizacion: serverTimestamp(),
-        displayName: metadata.displayName || data.displayName,
-        photoURL: metadata.photoURL || data.photoURL
+        fecha_actualizacion: serverTimestamp()
     };
 
     if (curso) {

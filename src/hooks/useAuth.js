@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { auth, syncUserProfile } from '../config/firebase';
 
 /**
  * Hook para gestionar el estado de autenticación de Firebase.
@@ -18,7 +18,15 @@ export function useAuth() {
             return;
         }
 
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                // Sincronizar perfil con Firestore al iniciar sesión
+                try {
+                    await syncUserProfile(currentUser);
+                } catch (error) {
+                    console.error("Error sincronizando perfil:", error);
+                }
+            }
             setUser(currentUser);
             setLoading(false);
         });
