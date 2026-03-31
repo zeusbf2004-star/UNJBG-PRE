@@ -62,8 +62,7 @@ export default function StatsPage() {
         const labels = {
             'Razonamiento Verbal': 'RV',
             'Razonamiento Matemático': 'RM',
-            'Realidad Nacional': 'RN',
-            'Aritmética y Álgebra': 'AA',
+            'Aritmética y Álgebra': 'A&A',
             'Física': 'FIS',
             'Química': 'QUI',
             'Biología': 'BIO',
@@ -72,7 +71,8 @@ export default function StatsPage() {
             'Historia': 'HIS',
             'Geografía': 'GEO',
             'Economía': 'ECO',
-            'Psicología': 'PSI'
+            'Psicología': 'PSI',
+            'Realidad Nacional': 'RN'
         };
 
         const data = Object.entries(stats).map(([curso, s]) => ({
@@ -83,14 +83,14 @@ export default function StatsPage() {
 
         if (data.length === 0) {
             return [
-                { subject: 'Mat', A: 0, fullMark: 100 },
-                { subject: 'Let', A: 0, fullMark: 100 },
-                { subject: 'Cie', A: 0, fullMark: 100 },
-                { subject: 'Apt', A: 0, fullMark: 100 }
+                { subject: 'MAT', A: 0, fullMark: 100 },
+                { subject: 'LET', A: 0, fullMark: 100 },
+                { subject: 'CIE', A: 0, fullMark: 100 },
+                { subject: 'APT', A: 0, fullMark: 100 }
             ];
         }
-        // Limitar a los mejores 6 para que el radar se vea bien
-        return data.slice(0, 6);
+        
+        return data;
     }, [gamification]);
 
     if (loadingHistorial || loadingFc || loadingCarrera) {
@@ -232,12 +232,12 @@ export default function StatsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                     {/* Radar Chart */}
                     <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
-                        <h3 className="text-lg font-bold text-slate-800 mb-8 flex items-center gap-2">🎯 Dominio por Áreas</h3>
+                        <h3 className="text-lg font-bold text-slate-800 mb-8 flex items-center gap-2">🎯 Dominio Real por Curso</h3>
                         <div className="h-64 flex items-center justify-center">
                             <ResponsiveContainer width="100%" height="100%">
-                                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                                     <PolarGrid stroke="#e2e8f0" />
-                                    <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
+                                    <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9, fontWeight: 800, fill: '#64748b' }} />
                                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                                     <Radar name="Usuario" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.6} />
                                 </RadarChart>
@@ -245,7 +245,7 @@ export default function StatsPage() {
                         </div>
                         <div className="mt-4 p-4 bg-slate-50 rounded-2xl text-center">
                             <p className="text-xs text-slate-600 leading-relaxed italic">
-                                Visualiza tus fortalezas y debilidades según tu precisión en cada curso.
+                                Visualiza tu nivel de dominio en cada materia evaluada.
                             </p>
                         </div>
                     </div>
