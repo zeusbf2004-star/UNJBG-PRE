@@ -3,8 +3,8 @@ import Latex from 'react-latex-next';
 import 'katex/dist/katex.min.css';
 import { db } from '../../../shared/config/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { useAuth } from '../../../auth/hooks/useAuth';
-import { updatePoints } from '../../../gamification/lib/gamification';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { updatePoints } from '../../gamification/lib/gamification';
 
 export default function LessonViewer({ leccion }) {
     const { user } = useAuth();

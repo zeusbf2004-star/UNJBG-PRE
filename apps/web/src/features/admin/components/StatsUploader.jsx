@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { collection, writeBatch, doc, getDocs, query, limit, orderBy, deleteDoc, where, setDoc } from 'firebase/firestore';
 import { db } from '../../../shared/config/firebase';
-import { normalizarPuntaje, slugify } from '../../utils/statsCalculator';
+import { normalizarPuntaje, slugify } from '../../stats/lib/statsCalculator';
 
 export default function StatsUploader() {
     const fileInputRef = useRef(null);
