@@ -10,6 +10,22 @@ export default defineConfig({
       '@unjbg-pre/shared': path.resolve(__dirname, '../../packages/shared/src'),
     },
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/**/*.{js,jsx,ts,tsx}'],
+      exclude: [
+        'src/main.jsx',
+        'src/**/*.d.ts',
+        'src/test/**',
+      ],
+    },
+  },
   build: {
     rollupOptions: {
       output: {

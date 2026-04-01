@@ -1,75 +1,176 @@
 rules_version = '2';
 
+/**
+ * Firestore Security Rules — UNJBG PRE
+ *
+ * Principios de seguridad:
+ * - user_scores: SOLO lectura del dueño. Escritura SOLO desde Cloud Functions (admin SDK).
+ * - leaderboard: lectura pública autenticada, escritura SOLO desde Cloud Functions.
+ * - examenes: lectura libre para gratuitos, escritura solo admin.
+ * - Las colecciones de historial, progreso y flashcards son privadas al usuario.
+ *
+ * IMPORTANTE: Las actualizaciones de puntos y gamificación se hacen desde
+ * Cloud Functions (updatePoints), nunca directamente desde el cliente.
+ */
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Función auxiliar para saber si es el Admin
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    /** Verifica que el usuario esté autenticado */
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    /** Verifica que es el dueño del documento */
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    /** Verifica rol admin (custom claim o campo en Firestore) */
     function isAdmin() {
-      return request.auth != null && (
-        request.auth.token.admin == true || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+      return isAuth() && (
+        request.auth.token.admin == true ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
-    // Función auxiliar para saber si es Premium
+    /** Verifica si el usuario es premium */
     function isPremium() {
-      return request.auth != null && (
-        exists(/databases/$(database)/documents/user_scores/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/user_scores/$(request.auth.uid)).data.isPremium == true
-      );
+      return isAuth() &&
+        exists(/databases/$(database)/documents/user_scores/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/user_scores/$(request.auth.uid)).data.isPremium == true;
     }
 
-    // Colección users: Identidad y Roles
+    // ─── Usuarios (identidad y roles) ─────────────────────────────────────────
+
     match /users/{userId} {
-      // Cualquier usuario autenticado puede ver el perfil básico de otros (para Leaderboard)
-      allow read: if request.auth != null;
-      // Solo el Admin puede cambiar el rol. El usuario puede actualizar sus propios datos de perfil.
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && (
-        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])) ||
+      // Lectura: cualquier autenticado puede ver perfiles (necesario para Leaderboard)
+      allow read: if isAuth();
+      // Creación: solo el propio usuario puede crear su perfil
+      allow create: if isOwner(userId);
+      // Actualización: el usuario puede actualizar su propio perfil EXCEPTO el campo 'role'
+      // Solo el admin puede cambiar el rol
+      allow update: if isOwner(userId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isPremium']);
+      allow update: if isAdmin();
+      // No se permite borrar usuarios
+      allow delete: if false;
+    }
+
+    // ─── Exámenes ─────────────────────────────────────────────────────────────
+
+    match /examenes/{examId} {
+      // Lectura: todos los autenticados pueden leer exámenes gratuitos
+      // Los premium/admin pueden leer todos
+      allow read: if isAuth() && (
+        !resource.data.keys().hasAny(['isPremium']) ||
+        resource.data.isPremium != true ||
+        isPremium() ||
         isAdmin()
       );
-    }
-
-    // Colección examenes: Acceso a exámenes gratuitos, o todos si es premium/admin
-    match /examenes/{document=**} {
-      allow read: if isAdmin() || (resource.data.isPremium != true) || isPremium();
+      // Escritura: solo admin
       allow write: if isAdmin();
     }
 
-    // Colección historial: Usuarios solo leen/escriben sus propios resultados
+    match /examenes/{examId}/{document=**} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ─── Historial de exámenes ────────────────────────────────────────────────
+
     match /historial/{docId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Solo el dueño puede ver su historial
+      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      // El usuario puede crear su propio historial pero no puede modificar userId
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      // El usuario puede actualizar/borrar sus propios registros
+      allow update, delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 
-    // Colección flashcards: Todos los autenticados pueden leer, solo admin puede escribir
+    // ─── Flashcards (catálogo) ────────────────────────────────────────────────
+
     match /flashcards/{document=**} {
-      allow read: if request.auth != null;
+      // Todos los autenticados pueden leer el catálogo
+      allow read: if isAuth();
+      // Solo admin puede gestionar el catálogo
       allow write: if isAdmin();
     }
 
-    // Progreso de flashcards por usuario: Solo el usuario dueño puede leer/escribir
+    // ─── Progreso de flashcards por usuario ───────────────────────────────────
+
     match /user_flashcards/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Solo el dueño accede a su progreso de flashcards
+      allow read, write: if isOwner(userId);
     }
 
-    // Estadísticas de usuario: Solo el usuario dueño puede leer/escribir
-    match /user_stats/{userId}/{document=**} {
-      allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    // ─── Lecciones completadas (teoría) ───────────────────────────────────────
+
+    match /user_lessons/{userId}/completed/{lessonId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+      // No se puede desmarcar una lección completada desde el cliente
+      allow update, delete: if false;
     }
 
-    // Perfil de gamificación y suscripción: El usuario lee/escribe el suyo, Admin lee todo
+    // ─── GAMIFICACIÓN (user_scores) ───────────────────────────────────────────
+    // CRÍTICO: Escritura bloqueada para el cliente.
+    // Solo las Cloud Functions (Admin SDK) pueden escribir aquí.
+
     match /user_scores/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      // El dueño puede leer sus propios puntos; admin puede leer todo
+      allow read: if isOwner(userId) || isAdmin();
+      // ❌ ESCRITURA BLOQUEADA PARA EL CLIENTE
+      // La Cloud Function 'updatePoints' usa Admin SDK que bypasea estas reglas
+      allow write: if false;
     }
 
-    // Por defecto, cualquier otra colección/documento: Solo el admin tiene acceso total
-    match /{document=**} {
+    // ─── Leaderboard ──────────────────────────────────────────────────────────
+
+    match /leaderboard/{userId} {
+      // El leaderboard es público para todos los autenticados
+      allow read: if isAuth();
+      // ❌ ESCRITURA BLOQUEADA PARA EL CLIENTE (solo Cloud Functions)
+      allow write: if false;
+    }
+
+    // ─── Estadísticas de carreras (datos históricos de ingreso) ───────────────
+
+    match /carreras_stats/{carreraId} {
+      // Lectura pública para autenticados (para la predicción)
+      allow read: if isAuth();
+      // Solo admin puede subir estadísticas
+      allow write: if isAdmin();
+    }
+
+    // ─── Ingresantes históricos ────────────────────────────────────────────────
+
+    match /ingresantes_historicos/{docId} {
+      // Solo admin puede leer/escribir los históricos raw
       allow read, write: if isAdmin();
+    }
+
+    // ─── Control de uploads de estadísticas ───────────────────────────────────
+
+    match /uploads_stats/{uploadId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ─── Teoría (contenido educativo) ─────────────────────────────────────────
+
+    match /teoria/{document=**} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ─── Regla por defecto ────────────────────────────────────────────────────
+    // Denegar todo lo que no esté explícitamente permitido arriba
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

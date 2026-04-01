@@ -4,11 +4,11 @@
 
 /**
  * Normaliza un puntaje histórico a la base actual de 60 preguntas (600 pts).
- * @param {number} puntaje - Puntaje obtenido.
- * @param {number} totalPreguntas - Cantidad de preguntas del examen original.
- * @returns {number} Puntaje normalizado.
+ * @param puntaje - Puntaje obtenido.
+ * @param totalPreguntas - Cantidad de preguntas del examen original.
+ * @returns Puntaje normalizado.
  */
-export const normalizarPuntaje = (puntaje, totalPreguntas) => {
+export const normalizarPuntaje = (puntaje: number, totalPreguntas?: number): number => {
     if (!totalPreguntas || totalPreguntas === 0) return puntaje;
     // Si ya es de 60 preguntas, no hacemos nada
     if (totalPreguntas === 60) return puntaje;
@@ -19,12 +19,23 @@ export const normalizarPuntaje = (puntaje, totalPreguntas) => {
     return (puntaje / (totalPreguntas * 10)) * 600;
 };
 
+interface DataPoint {
+  x: number;
+  y: number;
+}
+
+interface TendenciaResult {
+  pendiente: number;
+  intercepto: number;
+  proximoValor: number;
+}
+
 /**
  * Calcula la tendencia de una serie de datos (Regresión Lineal Simple).
- * @param {Array} data - Array de objetos { x: número (fecha/orden), y: número (puntaje) }
- * @returns {Object} { pendiente, intercepto, proximoValor }
+ * @param data - Array de objetos { x: número (fecha/orden), y: número (puntaje) }
+ * @returns { pendiente, intercepto, proximoValor }
  */
-export const calcularTendencia = (data) => {
+export const calcularTendencia = (data: DataPoint[]): TendenciaResult => {
     if (data.length < 2) return { pendiente: 0, intercepto: data[0]?.y || 0, proximoValor: data[0]?.y || 0 };
 
     const n = data.length;
@@ -46,14 +57,36 @@ export const calcularTendencia = (data) => {
     return { pendiente, intercepto, proximoValor };
 };
 
+interface UserPerformance {
+  [curso: string]: {
+    promedio: number;
+    retencion: number;
+    avance: number;
+  };
+}
+
+interface TargetProfile {
+  [curso: string]: {
+    metaPuntaje: number;
+    metaRetencion?: number;
+  };
+}
+
+interface Recomendacion {
+  curso: string;
+  prioridad: number;
+  mensaje: string;
+  accion: 'FLASHCARDS' | 'BANQUEO';
+}
+
 /**
  * Calcula el "Gap Analysis" (Brecha Académica) por curso.
- * @param {Object} userPerformance - { [curso]: { promedio, retencion, avance } }
- * @param {Object} targetProfile - { [curso]: { metaPuntaje, metaRetencion } }
- * @returns {Array} Lista de recomendaciones prioritarias.
+ * @param userPerformance - { [curso]: { promedio, retencion, avance } }
+ * @param targetProfile - { [curso]: { metaPuntaje, metaRetencion } }
+ * @returns Lista de recomendaciones prioritarias.
  */
-export const analizarBrecha = (userPerformance, targetProfile) => {
-    const recomendaciones = [];
+export const analizarBrecha = (userPerformance: UserPerformance, targetProfile: TargetProfile): Recomendacion[] => {
+    const recomendaciones: Recomendacion[] = [];
 
     Object.entries(targetProfile).forEach(([curso, meta]) => {
         const perf = userPerformance[curso] || { promedio: 0, retencion: 0, avance: 0 };
@@ -72,15 +105,15 @@ export const analizarBrecha = (userPerformance, targetProfile) => {
         }
     });
 
-    return recomendaciones.sort((a, b) => b.prioridad - a.priority);
+    return recomendaciones.sort((a, b) => b.prioridad - a.prioridad);
 };
 
 /**
  * Genera un ID slug amigable a partir de un texto.
- * @param {string} text 
- * @returns {string}
+ * @param text 
+ * @returns slug string
  */
-export const slugify = (text) => {
+export const slugify = (text: string): string => {
     if (!text) return '';
     return text
         .toLowerCase()

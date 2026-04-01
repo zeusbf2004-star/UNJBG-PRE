@@ -4,14 +4,56 @@
       "collectionGroup": "historial",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "fecha",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "user_flashcards",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "nextReview", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "user_flashcards",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "deckId", "order": "ASCENDING" },
+        { "fieldPath": "nextReview", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "historial",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "examenId", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "leaderboard",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "puntos_totales", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "uploads_stats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fecha", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ingresantes_historicos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uploadId", "order": "ASCENDING" },
+        { "fieldPath": "fecha_carga", "order": "DESCENDING" }
       ]
     }
   ],
