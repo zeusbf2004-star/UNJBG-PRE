@@ -3,7 +3,18 @@
  * Compartido entre frontend (display) y Cloud Functions (cálculo).
  */
 
-export const NIVELES_GLOBALES = [
+export interface Nivel {
+  nombre: string;
+  min: number;
+  max: number;
+}
+
+export interface Hito {
+  nombre: string;
+  min: number;
+}
+
+export const NIVELES_GLOBALES: Nivel[] = [
   { nombre: 'Novato', min: 0, max: 99 },
   { nombre: 'Aprendiz', min: 100, max: 499 },
   { nombre: 'Explorador', min: 500, max: 1999 },
@@ -12,7 +23,7 @@ export const NIVELES_GLOBALES = [
   { nombre: 'Leyenda UNJBG', min: 15000, max: Infinity },
 ];
 
-export const HITOS_TITULOS = [
+export const HITOS_TITULOS: Hito[] = [
   { nombre: 'Iniciado en', min: 50 },
   { nombre: 'Especialista en', min: 250 },
   { nombre: 'Erudito de', min: 1000 },
@@ -20,19 +31,15 @@ export const HITOS_TITULOS = [
 
 /**
  * Obtiene el nombre del nivel actual según los puntos.
- * @param {number} puntos - Puntos totales del usuario
- * @returns {string} Nombre del nivel
  */
-export const getNivel = (puntos) => {
+export const getNivel = (puntos: number): string => {
   return NIVELES_GLOBALES.find(n => puntos >= n.min && puntos <= n.max)?.nombre || 'Novato';
 };
 
 /**
  * Obtiene la información del próximo nivel.
- * @param {number} puntos - Puntos totales del usuario
- * @returns {Object|null} Próximo nivel o null si ya es el máximo
  */
-export const getProximoNivel = (puntos) => {
+export const getProximoNivel = (puntos: number): Nivel | null => {
   const index = NIVELES_GLOBALES.findIndex(n => puntos >= n.min && puntos <= n.max);
   if (index === -1 || index === NIVELES_GLOBALES.length - 1) return null;
   return NIVELES_GLOBALES[index + 1];
