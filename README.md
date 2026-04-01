@@ -1,16 +1,48 @@
-# React + Vite
+# UNJBG PRE — Simulador de Admisión
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Plataforma de preparación preuniversitaria para la Universidad Nacional Jorge Basadre Grohmann (Tacna, Perú).
 
-Currently, two official plugins are available:
+## Estructura del Proyecto
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```
+unjbg-pre/
+├── apps/
+│   ├── web/          → Frontend (Vite + React + TailwindCSS)
+│   └── functions/    → Backend (Firebase Cloud Functions)
+├── packages/
+│   └── shared/       → Código compartido (algoritmos, constantes, tipos)
+├── firebase/         → Configuración Firebase (rules, indexes, hosting)
+└── scripts/          → Scripts de desarrollo y migración
+```
 
-## React Compiler
+## Tecnologías
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Capa | Tecnología |
+|------|-----------|
+| Frontend | React 19, Vite 7, TailwindCSS 4 |
+| Backend | Firebase Cloud Functions (Node 20) |
+| Base de datos | Cloud Firestore |
+| Auth | Firebase Auth (Google Sign-In) |
+| Hosting | Firebase Hosting |
 
-## Expanding the ESLint configuration
+## Desarrollo
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+# Instalar dependencias (desde la raíz)
+npm install
+
+# Levantar el frontend en modo desarrollo
+npm run dev
+
+# Lint
+npm run lint
+```
+
+## Features
+
+- 📝 **Simulacros reales** — Exámenes de 60 preguntas fieles a cada canal
+- 🧠 **Flashcards** — Sistema de repetición espaciada (SM-2)
+- 📊 **Estadísticas** — Predicción de ingreso, heatmap por tema
+- 🏆 **Gamificación** — Niveles, rachas, títulos, leaderboard
+- 📚 **Teoría** — Contenido organizado por curso
+- 🎯 **Banqueo** — Práctica personalizada con filtros avanzados
