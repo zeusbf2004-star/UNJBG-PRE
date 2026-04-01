@@ -1,11 +1,21 @@
+/**
+ * Gamification — Frontend bridge
+ *
+ * Este módulo actúa como puente entre el frontend y la Cloud Function de gamificación.
+ * Intenta usar la Cloud Function (seguro); si falla (función no desplegada aún),
+ * cae al fallback local para no romper la experiencia.
+ *
+ * TODO: Una vez desplegada la Cloud Function, eliminar el fallback y simplificar.
+ */
 import { db } from '../../../shared/config/firebase';
-import { 
-    doc, 
-    getDoc, 
-    setDoc, 
-    updateDoc, 
-    increment, 
-    serverTimestamp 
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
+import {
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    increment,
+    serverTimestamp
 } from 'firebase/firestore';
 import {
     NIVELES_GLOBALES,
@@ -16,6 +26,14 @@ import {
 
 // Re-export para que los consumidores existentes sigan funcionando
 export { NIVELES_GLOBALES, getNivel, getProximoNivel };
+
+// Inicializar Firebase Functions
+const functions = getFunctions();
+
+// Descomentar la siguiente línea para usar el emulador local:
+// connectFunctionsEmulator(functions, 'localhost', 5001);
+
+const updatePointsCallable = httpsCallable(functions, 'updatePoints');
 
 export const calcularTitulos = (puntos_por_curso) => {
     const nuevosTitulos = [];
@@ -29,10 +47,35 @@ export const calcularTitulos = (puntos_por_curso) => {
     return nuevosTitulos;
 };
 
+/**
+ * Actualiza puntos de gamificación.
+ * Intenta usar la Cloud Function; cae al fallback local si falla.
+ */
 export const updatePoints = async (userId, { puntos, curso, tipo, desglose = {}, metadata = {} }) => {
     if (!userId) return;
 
-    // Aplicar multiplicadores según el tipo de actividad
+    // Intentar Cloud Function primero
+    try {
+        const result = await updatePointsCallable({ puntos, curso, tipo, desglose, metadata });
+        return result.data;
+    } catch (error) {
+        // Si la función no está desplegada, usar fallback local
+        if (error.code === 'functions/not-found' || error.code === 'functions/unavailable') {
+            console.warn('[Gamification] Cloud Function no disponible, usando fallback local');
+            return updatePointsLocal(userId, { puntos, curso, tipo, desglose, metadata });
+        }
+        // Otros errores: loguear y seguir con fallback
+        console.error('[Gamification] Error en Cloud Function:', error);
+        return updatePointsLocal(userId, { puntos, curso, tipo, desglose, metadata });
+    }
+};
+
+/**
+ * Fallback local — Misma lógica pero ejecutada en el cliente.
+ * Se eliminará una vez desplegada la Cloud Function.
+ * @deprecated Usar Cloud Function cuando esté disponible
+ */
+const updatePointsLocal = async (userId, { puntos, curso, tipo, desglose = {}, metadata = {} }) => {
     const multiplicador = tipo === 'simulacro_real' ? 1.5 : 1.0;
     const puntosFinales = puntos * multiplicador;
 
@@ -54,43 +97,43 @@ export const updatePoints = async (userId, { puntos, curso, tipo, desglose = {},
         data = userDoc.data();
     }
 
-    // 1. Actualizar Puntos
+    // 1. Puntos
     const nuevosPuntosTotales = (data.puntos_totales || 0) + puntosFinales;
-    
-    // 2. Procesar Desglose (Estadísticas de Acierto)
+
+    // 2. Desglose
     const stats_curso = { ...(data.stats_por_curso || {}) };
     const stats_tema = { ...(data.stats_por_tema || {}) };
 
     Object.entries(desglose).forEach(([cName, cData]) => {
-        // Stats por curso
         if (!stats_curso[cName]) stats_curso[cName] = { correctas: 0, total: 0 };
         stats_curso[cName].correctas += cData.correctas;
         stats_curso[cName].total += cData.total;
 
-        // Stats por tema
-        Object.entries(cData.temas).forEach(([tName, tData]) => {
-            if (!stats_tema[tName]) stats_tema[tName] = { correctas: 0, total: 0 };
-            stats_tema[tName].correctas += tData.correctas;
-            stats_tema[tName].total += tData.total;
-        });
+        if (cData.temas) {
+            Object.entries(cData.temas).forEach(([tName, tData]) => {
+                if (!stats_tema[tName]) stats_tema[tName] = { correctas: 0, total: 0 };
+                stats_tema[tName].correctas += tData.correctas;
+                stats_tema[tName].total += tData.total;
+            });
+        }
     });
 
-    // 3. Gestionar racha
+    // 3. Racha
     let nuevaRacha = data.racha_actual || 0;
     const hoy = new Date().setHours(0, 0, 0, 0);
     const ultima = data.ultima_actividad ? data.ultima_actividad.toDate().setHours(0, 0, 0, 0) : null;
-    
+
     if (!ultima) {
         nuevaRacha = 1;
     } else if (hoy === ultima) {
-        // Mantenemos
+        // Mantener
     } else if (hoy === ultima + 86400000) {
         nuevaRacha += 1;
     } else {
         nuevaRacha = 1;
     }
 
-    // 4. Recalcular nivel y títulos
+    // 4. Nivel y títulos
     const nuevoNivel = getNivel(nuevosPuntosTotales);
     const nuevosTitulos = calcularTitulos({
         ...data.puntos_por_curso,

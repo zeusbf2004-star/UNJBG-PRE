@@ -7,3 +7,9 @@
 
 // Subscription
 export { togglePremium } from './subscription/togglePremium.js';
+
+// Gamification
+export { updatePoints } from './gamification/updatePoints.js';
+
+// Exam Generation
+export { generateExam } from './exam/generateExam.js';
