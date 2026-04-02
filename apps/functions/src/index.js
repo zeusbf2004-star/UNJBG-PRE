@@ -11,5 +11,15 @@ export { togglePremium } from './subscription/togglePremium.js';
 // Gamification
 export { updatePoints } from './gamification/updatePoints.js';
 
+// User summaries
+export {
+	updateUserSummaryOnHistorial,
+	updateUserSummaryOnDailyStats,
+} from './stats/updateUserSummary.js';
+export { computeWeeklyPercentiles } from './stats/computePercentiles.js';
+
 // Exam Generation
 export { generateExam } from './exam/generateExam.js';
+
+// Profile
+export { updateUserProfile } from './profile/updateUserProfile.js';

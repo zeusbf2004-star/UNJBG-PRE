@@ -1,12 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../shared/config/firebase';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { useDashboardData } from '../../dashboard/hooks/useDashboardData';
 import { usePrediction } from '../hooks/usePrediction';
-import { useSubscription } from '../../subscription/hooks/useSubscription';
-import PaywallModal from '../../subscription/components/PaywallModal';
 import TopicHeatmap from '../../stats/components/TopicHeatmap';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -21,40 +17,7 @@ export default function StatsPage() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { historial, loadingHistorial, fcStats, loadingFc, gamification } = useDashboardData(user);
-    const { 
-        prediction, 
-        carrerasDisponibles, 
-        loadingCarrera, 
-        setCarreraStats 
-    } = usePrediction(historial, fcStats, gamification, user);
-    
-    const { isPremium } = useSubscription(user);
-
-    const [updating, setUpdating] = useState(false);
-    const [showPaywall, setShowPaywall] = useState(false);
-
-    /**
-     * Cambia la carrera objetivo del usuario
-     */
-    const handleCarreraChange = async (carreraId) => {
-        if (!isPremium) {
-            setShowPaywall(true);
-            return;
-        }
-        if (!user?.uid || updating) return;
-        setUpdating(true);
-        try {
-            await updateDoc(doc(db, 'user_scores', user.uid), {
-                carrera_objetivo: carreraId
-            });
-            const selected = carrerasDisponibles.find(c => c.id === carreraId);
-            setCarreraStats(selected);
-        } catch (err) {
-            console.error("Error actualizando carrera:", err);
-        } finally {
-            setUpdating(false);
-        }
-    };
+    const { prediction, loadingCarrera } = usePrediction(historial, fcStats, gamification, user);
 
     // Preparar datos para el Radar Chart (Dominio Real por Curso)
     const radarData = useMemo(() => {
@@ -134,23 +97,18 @@ export default function StatsPage() {
                         </div>
                     </div>
 
-                    {/* Selector de Carrera */}
+                    {/* Meta actual de perfil */}
                     <div className="flex items-center gap-2">
                         <span className="hidden sm:inline text-[10px] font-black text-slate-400 uppercase">Tu Meta:</span>
-                        <div className="relative group">
-                            {!isPremium && <span className="absolute -top-2 -right-2 text-[8px] bg-amber-400 text-white px-1.5 py-0.5 rounded-full font-black z-10 shadow-sm">PREMIUM</span>}
-                            <select 
-                                className={`bg-slate-50 border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer ${!isPremium ? 'opacity-70 grayscale' : ''}`}
-                                value={carrerasDisponibles.find(c => c.nombre === prediction.carreraNombre)?.id || ''}
-                                onChange={(e) => handleCarreraChange(e.target.value)}
-                                disabled={updating}
-                            >
-                                <option value="">Selecciona Carrera</option>
-                                {carrerasDisponibles.map(c => (
-                                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <span className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700">
+                            {prediction.carreraNombre}
+                        </span>
+                        <button
+                            onClick={() => navigate('/perfil')}
+                            className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all"
+                        >
+                            Cambiar en perfil
+                        </button>
                     </div>
                 </div>
             </header>
@@ -291,15 +249,16 @@ export default function StatsPage() {
                     <TopicHeatmap 
                         stats_tema={gamification?.stats_por_tema} 
                         stats_curso={gamification?.stats_por_curso} 
+                        comparativeData={{
+                            promedioCompetencia: prediction?.promedioCompetencia,
+                            competidoresCohorte: prediction?.competidoresCohorte,
+                            percentile: prediction?.percentile,
+                            ranking: prediction?.ranking,
+                        }}
                     />
                 </div>
             </main>
 
-            <PaywallModal 
-                isOpen={showPaywall} 
-                onClose={() => setShowPaywall(false)} 
-                reason="stats"
-            />
         </div>
     );
 }

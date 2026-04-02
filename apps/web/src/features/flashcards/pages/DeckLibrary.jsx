@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '../../../shared/config/firebase';
+import { collection, getCountFromServer, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { auth, db } from '../../../shared/config/firebase';
 import { useSubscriptions } from '../../subscription/hooks/useSubscriptions';
 import PaywallModal from '../../subscription/components/PaywallModal';
+import { createPerfTrace, estimatePayloadKB } from '../../../shared/lib/perfMetrics';
+import { getOfflineDecks, removeOfflineDeck, saveDeckCards } from '../lib/offlineFlashcardsDb';
 
 export default function DeckLibrary() {
     const navigate = useNavigate();
@@ -12,9 +14,12 @@ export default function DeckLibrary() {
     const [isLoading, setIsLoading] = useState(true);
     const [counts, setCounts] = useState({});
     const [showPaywall, setShowPaywall] = useState(false);
+    const [offlineDeckMap, setOfflineDeckMap] = useState({});
+    const [downloadingDeck, setDownloadingDeck] = useState('');
 
     useEffect(() => {
         const fetchData = async () => {
+            const trace = createPerfTrace('flashcards.deck-library.load');
             try {
                 // 1. Fetch all lecciones to build the tree
                 const q = query(collection(db, 'lecciones'), orderBy('curso'), orderBy('orden'));
@@ -30,27 +35,81 @@ export default function DeckLibrary() {
 
                 setCourses(grouped);
 
-                // 2. Fetch all flashcards to count them (optional but requested in plan)
-                const fcSnapshot = await getDocs(collection(db, "flashcards"));
+                // 2. Cargar conteos por metadata con queries agregadas (sin descargar tarjetas completas)
                 const fcCounts = {};
-                fcSnapshot.forEach(doc => {
-                    const data = doc.data();
-                    const cursoKey = `curso_${data.curso}`;
-                    const temaKey = `tema_${data.temaId || data.tema}`; // Prefer temaId if exists, but mock uses tema
-                    
-                    fcCounts[cursoKey] = (fcCounts[cursoKey] || 0) + 1;
-                    fcCounts[temaKey] = (fcCounts[temaKey] || 0) + 1;
+
+                const cursosList = Object.keys(grouped);
+                const cursoCountsResults = await Promise.all(
+                    cursosList.map(async (curso) => {
+                        const qCurso = query(collection(db, 'flashcards'), where('curso', '==', curso));
+                        const snap = await getCountFromServer(qCurso);
+                        return [curso, snap.data().count];
+                    })
+                );
+
+                cursoCountsResults.forEach(([curso, count]) => {
+                    fcCounts[`curso_${curso}`] = count;
                 });
+
+                const allTemas = list.map((tema) => ({ id: tema.id, nombre: tema.tema }));
+                const temaCountsResults = await Promise.all(
+                    allTemas.map(async (tema) => {
+                        const qByTemaId = query(collection(db, 'flashcards'), where('temaId', '==', tema.id));
+                        const idCountSnap = await getCountFromServer(qByTemaId);
+                        const idCount = idCountSnap.data().count;
+
+                        if (idCount > 0) {
+                            return [tema.id, idCount];
+                        }
+
+                        // Compatibilidad con registros legacy que solo guardan nombre de tema.
+                        const qByTemaNombre = query(collection(db, 'flashcards'), where('tema', '==', tema.nombre));
+                        const nameCountSnap = await getCountFromServer(qByTemaNombre);
+                        return [tema.id, nameCountSnap.data().count];
+                    })
+                );
+
+                temaCountsResults.forEach(([temaId, count]) => {
+                    fcCounts[`tema_${temaId}`] = count;
+                });
+
                 setCounts(fcCounts);
+                trace.end('ok', {
+                    cursos: cursosList.length,
+                    temas: allTemas.length,
+                    estimatedReads: snapshot.size + cursosList.length + (allTemas.length * 2),
+                    payloadKB: estimatePayloadKB({ list, fcCounts }),
+                });
 
             } catch (error) {
                 console.error("Error loading library data:", error);
+                trace.end('error', { error: String(error?.message || error) });
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchData();
+    }, []);
+
+    useEffect(() => {
+        const loadOfflineDecks = async () => {
+            const userId = auth.currentUser?.uid;
+            if (!userId) return;
+
+            try {
+                const decks = await getOfflineDecks(userId);
+                const map = decks.reduce((acc, deck) => {
+                    acc[deck.deckKey] = deck;
+                    return acc;
+                }, {});
+                setOfflineDeckMap(map);
+            } catch (error) {
+                console.error('Error loading offline decks:', error);
+            }
+        };
+
+        loadOfflineDecks();
     }, []);
 
     if (isLoading || subLoading) {
@@ -72,6 +131,41 @@ export default function DeckLibrary() {
             return;
         }
         await toggleCourseSubscription(curso);
+    };
+
+    const handleOfflineDeck = async (curso) => {
+        const userId = auth.currentUser?.uid;
+        if (!userId || downloadingDeck) return;
+
+        setDownloadingDeck(curso);
+        try {
+            if (offlineDeckMap[curso]) {
+                await removeOfflineDeck(userId, curso);
+                setOfflineDeckMap(prev => {
+                    const next = { ...prev };
+                    delete next[curso];
+                    return next;
+                });
+                return;
+            }
+
+            const cardsSnap = await getDocs(query(collection(db, 'flashcards'), where('curso', '==', curso)));
+            const cards = cardsSnap.docs.map((row) => ({ id: row.id, ...row.data() }));
+            await saveDeckCards(userId, curso, cards);
+
+            setOfflineDeckMap(prev => ({
+                ...prev,
+                [curso]: {
+                    deckKey: curso,
+                    cardCount: cards.length,
+                    downloadedAt: Date.now(),
+                },
+            }));
+        } catch (error) {
+            console.error('Error toggling offline deck:', error);
+        } finally {
+            setDownloadingDeck('');
+        }
     };
 
     return (
@@ -118,6 +212,8 @@ export default function DeckLibrary() {
                     {Object.entries(courses).map(([curso, temas]) => {
                         const isSubscribed = isCourseSubscribed(curso);
                         const cardCount = counts[`curso_${curso}`] || 0;
+                        const isOfflineReady = Boolean(offlineDeckMap[curso]);
+                        const offlineCount = offlineDeckMap[curso]?.cardCount || 0;
 
                         return (
                             <div key={curso} className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
@@ -127,23 +223,45 @@ export default function DeckLibrary() {
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                             {cardCount} tarjetas totales
                                         </span>
+                                        {isOfflineReady && (
+                                            <div className="mt-1 text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                                                Offline listo ({offlineCount})
+                                            </div>
+                                        )}
                                     </div>
-                                    <button
-                                        onClick={() => handleToggleCourse(curso)}
-                                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
-                                            isSubscribed 
-                                                ? 'bg-indigo-600 text-white hover:bg-red-500' 
-                                                : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
-                                        }`}
-                                    >
-                                        {isSubscribed ? 'Suscrito' : 'Suscribirse'}
-                                    </button>
+                                    <div className="flex flex-col gap-2 items-end">
+                                        <button
+                                            onClick={() => handleToggleCourse(curso)}
+                                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
+                                                isSubscribed 
+                                                    ? 'bg-indigo-600 text-white hover:bg-red-500' 
+                                                    : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
+                                            }`}
+                                        >
+                                            {isSubscribed ? 'Suscrito' : 'Suscribirse'}
+                                        </button>
+                                        <button
+                                            onClick={() => handleOfflineDeck(curso)}
+                                            disabled={downloadingDeck === curso}
+                                            className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border ${
+                                                isOfflineReady
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                            } ${downloadingDeck === curso ? 'opacity-60 cursor-wait' : ''}`}
+                                        >
+                                            {downloadingDeck === curso
+                                                ? 'Preparando...'
+                                                : isOfflineReady
+                                                    ? 'Quitar offline'
+                                                    : 'Descargar offline'}
+                                        </button>
+                                    </div>
                                 </div>
                                 
                                 <div className="p-4 space-y-3 flex-1">
                                     {temas.map(tema => {
                                         const subTema = isTopicSubscribed(tema.id);
-                                        const temaCount = counts[`tema_${tema.tema}`] || 0; // Using tema string as key for count if id not in flashcard
+                                        const temaCount = counts[`tema_${tema.id}`] || 0;
 
                                         return (
                                             <div key={tema.id} className="flex items-center justify-between group">

@@ -1,12 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useFlashcards } from '../hooks/useFlashcards';
+import { useOfflineFlashcards } from '../hooks/useOfflineFlashcards';
 import Flashcard from '../components/Flashcard';
 import FlashcardControls from '../components/FlashcardControls';
 
 export default function FlashcardsPage() {
     const navigate = useNavigate();
-    const { currentCard, isFinished, isLoading, totalCards, currentIndex, processAnswer, hasSubscriptions } = useFlashcards();
+    const {
+        currentCard,
+        isFinished,
+        isLoading,
+        totalCards,
+        currentIndex,
+        processAnswer,
+        hasSubscriptions,
+        isOfflineMode,
+        pendingSyncCount
+    } = useOfflineFlashcards();
     const [isFlipped, setIsFlipped] = useState(false);
 
     // Reset flip state when card changes (Recommended React pattern: reset during render)
@@ -161,6 +171,16 @@ export default function FlashcardsPage() {
                     <p className="text-slate-500 max-w-xl mx-auto text-sm sm:text-base">
                         Sistema de repetición espaciada (SM-2). Estudia inteligente, no más duro.
                     </p>
+                    <div className="mt-4 flex items-center justify-center gap-2 text-xs">
+                        <span className={`px-2.5 py-1 rounded-full font-semibold ${isOfflineMode ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {isOfflineMode ? 'Modo Offline' : 'Conectado'}
+                        </span>
+                        {pendingSyncCount > 0 && (
+                            <span className="px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">
+                                {pendingSyncCount} respuestas por sincronizar
+                            </span>
+                        )}
+                    </div>
                 </header>
 
                 {/* Progress bar */}

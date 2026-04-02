@@ -4,8 +4,9 @@ import React, { useMemo } from 'react';
  * Mapa de Calor de Temas
  * @param {Object} stats_tema - { [tema]: { correctas, total } }
  * @param {Object} stats_curso - { [curso]: { correctas, total } }
+ * @param {Object} comparativeData - { promedioCompetencia, competidoresCohorte, percentile, ranking }
  */
-export default function TopicHeatmap({ stats_tema = {}, stats_curso = {} }) {
+export default function TopicHeatmap({ stats_tema = {}, stats_curso = {}, comparativeData = {} }) {
     
     // Agrupar temas por curso (basado en los datos que tenemos)
     // En un sistema ideal, esto vendría de una lista maestra de prospecto.
@@ -36,6 +37,17 @@ export default function TopicHeatmap({ stats_tema = {}, stats_curso = {} }) {
         if (percent >= 20) return 'bg-orange-400';
         return 'bg-rose-500 shadow-rose-100';
     };
+
+    const comparativeRows = useMemo(() => {
+        return Object.entries(stats_curso)
+            .filter(([, data]) => data?.total > 0)
+            .map(([curso, data]) => ({
+                curso,
+                userScore: Math.round((data.correctas / data.total) * 100),
+                cohortScore: Math.round(comparativeData.promedioCompetencia || 0),
+            }))
+            .slice(0, 5);
+    }, [stats_curso, comparativeData.promedioCompetencia]);
 
     if (groupedData.length === 0) {
         return (
@@ -106,6 +118,42 @@ export default function TopicHeatmap({ stats_tema = {}, stats_curso = {} }) {
                     </ul>
                 </div>
             </div>
+
+            {comparativeRows.length > 0 && (
+                <div className="mt-8 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="flex items-center justify-between mb-4 gap-3">
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Comparativa Competitiva</h4>
+                        <div className="text-[10px] text-slate-500 font-bold">
+                            {comparativeData.percentile ? `Top ${100 - comparativeData.percentile}%` : 'Sin percentil semanal'}
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        {comparativeRows.map((row) => (
+                            <div key={row.curso}>
+                                <div className="flex items-center justify-between mb-1 text-[11px]">
+                                    <span className="font-bold text-slate-700 truncate pr-2">{row.curso}</span>
+                                    <span className="font-semibold text-slate-500">{row.userScore}% vs {row.cohortScore}%</span>
+                                </div>
+                                <div className="relative h-3 rounded-full bg-slate-200 overflow-hidden">
+                                    <div
+                                        className="absolute top-0 left-0 h-full bg-slate-400"
+                                        style={{ width: `${Math.min(100, row.cohortScore)}%` }}
+                                    />
+                                    <div
+                                        className="absolute top-0 left-0 h-full bg-indigo-500"
+                                        style={{ width: `${Math.min(100, row.userScore)}%` }}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <p className="mt-4 text-[11px] text-slate-500">
+                        Azul: tu rendimiento. Gris: promedio competitivo de tu carrera y canal.
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

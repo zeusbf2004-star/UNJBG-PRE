@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { collection, getDocs } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { db } from '../../../shared/config/firebase';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { getProximoNivel, NIVELES_GLOBALES } from '../../gamification/lib/gamification';
@@ -34,19 +37,75 @@ export default function Dashboard({ user }) {
     const navigate = useNavigate();
     const { logout } = useAuth();
     const [showSimModal, setShowSimModal] = useState(false);
+    const [generatingSimulacro, setGeneratingSimulacro] = useState(false);
     const [simConfig, setSimConfig] = useState({ proceso: 'CEPU', canal: 'Canal 1' });
     
     const {
         historial,
         loadingHistorial,
-        examenes,
-        loadingExamenes,
+        loadMoreHistorial,
+        loadingMoreHistorial,
+        hasMoreHistorial,
         fcStats,
         loadingFc,
         examStats,
         gamification,
         loadingGamification
-    } = useDashboardData(user);
+    } = useDashboardData(user, { paginatedHistorial: true, historialPageSize: 10 });
+
+    const handleGenerateSimulacro = async () => {
+        if (generatingSimulacro) return;
+
+        setGeneratingSimulacro(true);
+        try {
+            const functions = getFunctions();
+            const generateExamCallable = httpsCallable(functions, 'generateExam');
+
+            const response = await generateExamCallable({
+                proceso: simConfig.proceso,
+                canal: simConfig.canal,
+            });
+
+            const questions = response.data?.preguntas || [];
+            if (!questions.length) {
+                alert('No se pudieron generar preguntas para este canal. Verifica que existan exámenes subidos.');
+                return;
+            }
+
+            sessionStorage.setItem('customExamQuestions', JSON.stringify(questions));
+            sessionStorage.setItem('customExamTitle', `Simulacro: ${simConfig.proceso} - ${simConfig.canal}`);
+            sessionStorage.setItem('customExamDuration', '180');
+            sessionStorage.setItem('isSurvivalMode', 'false');
+            sessionStorage.setItem('examType', 'simulacro_real');
+            navigate('/simulacro/custom');
+            return;
+        } catch (err) {
+            console.warn('Cloud Function generateExam no disponible, usando fallback local:', err);
+
+            // Fallback de compatibilidad: carga exámenes solo bajo demanda.
+            try {
+                const snapshot = await getDocs(collection(db, 'examenes'));
+                const examenes = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+                const questions = generateSimulacro(examenes, simConfig);
+
+                if (!questions || questions.length === 0) {
+                    alert('No se pudieron generar preguntas para este canal. Verifica que existan exámenes subidos.');
+                    return;
+                }
+
+                sessionStorage.setItem('customExamQuestions', JSON.stringify(questions));
+                sessionStorage.setItem('customExamTitle', `Simulacro: ${simConfig.proceso} - ${simConfig.canal}`);
+                sessionStorage.setItem('customExamDuration', '180');
+                sessionStorage.setItem('isSurvivalMode', 'false');
+                sessionStorage.setItem('examType', 'simulacro_real');
+                navigate('/simulacro/custom');
+            } catch (fallbackErr) {
+                alert(fallbackErr.message || 'No se pudo generar el simulacro. Intenta nuevamente.');
+            }
+        } finally {
+            setGeneratingSimulacro(false);
+        }
+    };
 
     const handleLogout = async () => {
         await logout();
@@ -79,6 +138,13 @@ export default function Dashboard({ user }) {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => navigate('/perfil')}
+                            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 transition-all cursor-pointer active:scale-95"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A9 9 0 1118.88 17.804M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            Mi perfil
+                        </button>
                         <div className="hidden sm:flex items-center gap-3">
                             {user?.photoURL && (
                                 <img src={user.photoURL} alt="Avatar" className="w-8 h-8 rounded-full border-2 border-indigo-200" referrerPolicy="no-referrer" />
@@ -243,6 +309,18 @@ export default function Dashboard({ user }) {
                                         </div>
                                     </div>
                                  ))}
+
+                                {!loadingHistorial && hasMoreHistorial && (
+                                    <div className="pt-2">
+                                        <button
+                                            onClick={loadMoreHistorial}
+                                            disabled={loadingMoreHistorial}
+                                            className="w-full py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-sm font-semibold hover:bg-slate-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                                        >
+                                            {loadingMoreHistorial ? 'Cargando más...' : 'Ver historial anterior'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -250,7 +328,11 @@ export default function Dashboard({ user }) {
                     {/* Columna Derecha: Leaderboard */}
                     <div className="lg:col-span-1">
                         <div className="sticky top-24">
-                            <Leaderboard />
+                            <Leaderboard
+                                user={user}
+                                isPremium={!!gamification?.isPremium}
+                                carreraObjetivo={gamification?.carrera_objetivo || null}
+                            />
                             
                             {/* Tips Card */}
                             <div className="mt-6 bg-amber-50 rounded-2xl p-4 border border-amber-100 shadow-sm">
@@ -311,30 +393,11 @@ export default function Dashboard({ user }) {
                                     Cancelar
                                 </button>
                                 <button 
-                                    onClick={() => {
-                                        try {
-                                            if (loadingExamenes) {
-                                                alert("Cargando base de datos de exámenes... Por favor espera un momento.");
-                                                return;
-                                            }
-                                            const questions = generateSimulacro(examenes, simConfig);
-                                            if (!questions || questions.length === 0) {
-                                                alert("No se pudieron generar preguntas para este canal. Verifica que existan exámenes subidos.");
-                                                return;
-                                            }
-                                            sessionStorage.setItem('customExamQuestions', JSON.stringify(questions));
-                                            sessionStorage.setItem('customExamTitle', `Simulacro: ${simConfig.proceso} - ${simConfig.canal}`);
-                                            sessionStorage.setItem('customExamDuration', '180');
-                                            sessionStorage.setItem('isSurvivalMode', 'false');
-                                            sessionStorage.setItem('examType', 'simulacro_real');
-                                            navigate('/simulacro/custom');
-                                        } catch (err) {
-                                            alert(err.message);
-                                        }
-                                    }}
-                                    className="flex-1 py-3 text-sm font-bold bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
+                                    onClick={handleGenerateSimulacro}
+                                    disabled={generatingSimulacro}
+                                    className="flex-1 py-3 text-sm font-bold bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    ¡Empezar!
+                                    {generatingSimulacro ? 'Generando...' : '¡Empezar!'}
                                 </button>
                             </div>
                         </div>

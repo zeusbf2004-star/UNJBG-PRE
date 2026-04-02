@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, startAfter } from 'firebase/firestore';
 import { db } from '../../../shared/config/firebase';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { useSubscription } from '../../subscription/hooks/useSubscription';
@@ -120,6 +120,10 @@ export default function BanqueoPage() {
 
     const [loading, setLoading] = useState(true);
     const [examenes, setExamenes] = useState([]);
+    const [lastVisibleDoc, setLastVisibleDoc] = useState(null);
+    const [hasMoreExamenes, setHasMoreExamenes] = useState(false);
+    const [loadingMoreExamenes, setLoadingMoreExamenes] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
     
     // Filtros Multi-select
@@ -133,12 +137,34 @@ export default function BanqueoPage() {
     const [cantidad, setCantidad] = useState(20);
     const [modoSupervivencia, setModoSupervivencia] = useState(false);
 
+    const PAGE_SIZE = 10;
+
     useEffect(() => {
         const fetchExamenes = async () => {
             try {
-                const snapshot = await getDocs(collection(db, 'examenes'));
+                let adminUser = false;
+                if (user?.uid) {
+                    const profileDoc = await getDoc(doc(db, 'users', user.uid));
+                    adminUser = profileDoc.exists() && profileDoc.data()?.role === 'admin';
+                    setIsAdmin(adminUser);
+                }
+
+                if (adminUser) {
+                    const snapshot = await getDocs(collection(db, 'examenes'));
+                    const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                    setExamenes(docs);
+                    setHasMoreExamenes(false);
+                    setLastVisibleDoc(null);
+                    return;
+                }
+
+                const initialQuery = query(collection(db, 'examenes'), limit(PAGE_SIZE));
+                const snapshot = await getDocs(initialQuery);
                 const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
                 setExamenes(docs);
+                setLastVisibleDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+                setHasMoreExamenes(snapshot.docs.length === PAGE_SIZE);
             } catch (err) {
                 console.error("Error cargando base de datos de banqueo:", err);
             } finally {
@@ -146,7 +172,31 @@ export default function BanqueoPage() {
             }
         };
         fetchExamenes();
-    }, []);
+    }, [user?.uid]);
+
+    const loadMoreExamenes = async () => {
+        if (isAdmin || !hasMoreExamenes || !lastVisibleDoc || loadingMoreExamenes) return;
+
+        setLoadingMoreExamenes(true);
+        try {
+            const nextQuery = query(
+                collection(db, 'examenes'),
+                startAfter(lastVisibleDoc),
+                limit(PAGE_SIZE)
+            );
+
+            const snapshot = await getDocs(nextQuery);
+            const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            setExamenes(prev => [...prev, ...docs]);
+            setLastVisibleDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+            setHasMoreExamenes(snapshot.docs.length === PAGE_SIZE);
+        } catch (err) {
+            console.error('Error al cargar más exámenes:', err);
+        } finally {
+            setLoadingMoreExamenes(false);
+        }
+    };
 
     // Todas las preguntas aplanadas
     const allPreguntas = useMemo(() => {
@@ -251,6 +301,23 @@ export default function BanqueoPage() {
                         )}
                     </div>
                 </header>
+
+                {!isAdmin && (
+                    <div className="mb-6 bg-white rounded-2xl border border-slate-100 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                            Mostrando <span className="font-bold text-slate-700">{examenes.length}</span> exámenes cargados para filtrar preguntas.
+                        </p>
+                        {hasMoreExamenes && (
+                            <button
+                                onClick={loadMoreExamenes}
+                                disabled={loadingMoreExamenes}
+                                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold uppercase tracking-wide hover:bg-slate-700 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                                {loadingMoreExamenes ? 'Cargando...' : 'Ver exámenes anteriores'}
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
                     {/* Filtros */}

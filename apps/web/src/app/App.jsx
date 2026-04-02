@@ -15,6 +15,7 @@ const FlashcardsPage = lazy(() => import('../features/flashcards/pages/Flashcard
 const DeckLibrary = lazy(() => import('../features/flashcards/pages/DeckLibrary'));
 const TeoriaPage = lazy(() => import('../features/teoria/pages/TeoriaPage'));
 const StatsPage = lazy(() => import('../features/stats/pages/StatsPage'));
+const UserProfile = lazy(() => import('../features/profile/pages/UserProfile'));
 
 function App() {
   const { user, loading } = useAuth();
@@ -93,6 +94,14 @@ function App() {
             element={
               <ProtectedRoute user={user}>
                 <StatsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/perfil"
+            element={
+              <ProtectedRoute user={user}>
+                <UserProfile />
               </ProtectedRoute>
             }
           />

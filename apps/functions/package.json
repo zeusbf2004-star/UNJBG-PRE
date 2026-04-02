@@ -3,17 +3,22 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "serve": "firebase emulators:start --only functions --config ../../firebase/firebase.json",
-    "deploy": "firebase deploy --only functions --config ../../firebase/firebase.json"
+    "test": "vitest run",
+    "build": "node build.js",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "deploy": "npm run build && firebase deploy --only functions --config ../../firebase.json"
   },
   "engines": {
     "node": "20"
   },
   "dependencies": {
-    "@unjbg-pre/shared": "*",
     "firebase-admin": "^13.0.0",
     "firebase-functions": "^6.3.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.4",
+    "vitest": "^4.1.2"
   }
 }

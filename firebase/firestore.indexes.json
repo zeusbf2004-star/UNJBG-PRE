@@ -35,16 +35,10 @@
       ]
     },
     {
-      "collectionGroup": "leaderboard",
+      "collectionGroup": "historial",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "puntos_totales", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "uploads_stats",
-      "queryScope": "COLLECTION",
-      "fields": [
+        { "fieldPath": "examenId", "order": "ASCENDING" },
         { "fieldPath": "fecha", "order": "DESCENDING" }
       ]
     },

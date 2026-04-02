@@ -26,5 +26,5 @@ export type { Nivel, Hito } from './constants/levels';
 export { EXAM_BLUEPRINTS } from './constants/exam-blueprints';
 
 // Algorithms
-export { calculateSM2, isDueForReview } from './algorithms/sm2';
+export { calculateSM2, isDueForReview, hasIncomingReviewPriority } from './algorithms/sm2';
 export type { SM2Card, SM2Result } from './algorithms/sm2';

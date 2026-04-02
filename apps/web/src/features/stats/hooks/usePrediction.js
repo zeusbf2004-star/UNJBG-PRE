@@ -3,6 +3,8 @@ import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../shared/config/firebase';
 import { normalizarPuntaje, calcularTendencia, analizarBrecha, slugify } from '../lib/statsCalculator';
 
+const isE2EMockEnabled = () => typeof window !== 'undefined' && !!window.__TEST_E2E__;
+
 /**
  * Hook para obtener la predicción de ingreso del usuario.
  * @param {Array} historial - Lista de exámenes realizados.
@@ -14,22 +16,50 @@ export function usePrediction(historial = [], fcStats = {}, gamification = {}, u
     const [carreraStats, setCarreraStats] = useState(null);
     const [loadingCarrera, setLoadingCarrera] = useState(true);
     const [carrerasDisponibles, setCarrerasDisponibles] = useState([]);
+    const [percentileStats, setPercentileStats] = useState(null);
+
+    useEffect(() => {
+        if (!user?.uid || !isE2EMockEnabled()) return;
+
+        const mockCareers = Array.isArray(window.__TEST_CAREERS__) ? window.__TEST_CAREERS__ : [];
+        const mockProfile = window.__TEST_PROFILE__ || {};
+        const selected = mockCareers.find((c) => c.id === mockProfile.carrera_objetivo) || null;
+
+        setCarrerasDisponibles(mockCareers);
+        setCarreraStats(selected);
+        setLoadingCarrera(false);
+    }, [user?.uid]);
 
     // 1. Cargar carreras disponibles y meta del usuario
     useEffect(() => {
+        if (isE2EMockEnabled()) {
+            return;
+        }
+
         const fetchCarreras = async () => {
             try {
                 const snap = await getDocs(collection(db, 'carreras_stats'));
                 const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 setCarrerasDisponibles(list);
 
-                // Obtener carrera del usuario si existe
+                // Obtener carrera del usuario desde el perfil (users/{uid})
                 if (user?.uid) {
-                    const scoreDoc = await getDoc(doc(db, 'user_scores', user.uid));
-                    const userData = scoreDoc.data();
+                    const [userDoc, userPercentileDoc] = await Promise.all([
+                        getDoc(doc(db, 'users', user.uid)),
+                        getDoc(doc(db, 'user_percentiles', user.uid, 'weekly', 'current'))
+                    ]);
+                    const userData = userDoc.data();
                     if (userData?.carrera_objetivo) {
                         const carrera = list.find(c => c.id === userData.carrera_objetivo);
                         setCarreraStats(carrera);
+
+                        const cohortDocId = `${slugify(userData.carrera_objetivo)}__${slugify(userData.canal_objetivo || '')}`;
+                        const cohortDoc = await getDoc(doc(db, 'career_percentiles', cohortDocId));
+
+                        setPercentileStats({
+                            userPercentile: userPercentileDoc.exists() ? userPercentileDoc.data() : null,
+                            cohort: cohortDoc.exists() ? cohortDoc.data() : null,
+                        });
                     }
                 }
             } catch (err) {
@@ -42,6 +72,31 @@ export function usePrediction(historial = [], fcStats = {}, gamification = {}, u
     }, [user?.uid]);
 
     const stats = useMemo(() => {
+        if (isE2EMockEnabled()) {
+            const mockProfile = window.__TEST_PROFILE__ || {};
+            const mockCareers = Array.isArray(window.__TEST_CAREERS__) ? window.__TEST_CAREERS__ : [];
+            const currentCareer = mockCareers.find((c) => c.id === mockProfile.carrera_objetivo);
+            const targetName = currentCareer?.nombre || 'Sin carrera definida';
+            const mockTrend = [
+                { x: 1, y: 360 },
+                { x: 2, y: 385 },
+                { x: 3, y: 410 },
+            ];
+
+            return {
+                puntajeEstimado: 410,
+                probabilidad: 68,
+                recomendaciones: [
+                    { curso: 'Razonamiento Matemático', accion: 'BANQUEO', mensaje: 'Refuerza ejercicios de alta dificultad.' },
+                    { curso: 'Biología', accion: 'FLASHCARDS', mensaje: 'Consolida memoria con repasos espaciados.' },
+                ],
+                dataTendencia: mockTrend,
+                tendencia: { pendiente: 12.5, proximoValor: 410 },
+                metaPuntaje: 500,
+                carreraNombre: targetName,
+            };
+        }
+
         if (!historial || historial.length === 0) return null;
 
         // 1. Normalizar y preparar datos para tendencia
@@ -102,9 +157,14 @@ export function usePrediction(historial = [], fcStats = {}, gamification = {}, u
             dataTendencia,
             tendencia,
             metaPuntaje,
-            carreraNombre: carreraStats?.nombre || 'Elige tu carrera'
+                carreraNombre: carreraStats?.nombre || 'Elige tu carrera',
+                percentile: percentileStats?.userPercentile?.percentile || null,
+                ranking: percentileStats?.userPercentile?.rank || null,
+                totalCompetidores: percentileStats?.userPercentile?.totalParticipants || null,
+                promedioCompetencia: percentileStats?.cohort?.averageScore || null,
+                competidoresCohorte: percentileStats?.cohort?.participants || null,
         };
-    }, [historial, fcStats, carreraStats, gamification]);
+    }, [historial, fcStats, carreraStats, gamification, percentileStats]);
 
     return {
         prediction: stats,

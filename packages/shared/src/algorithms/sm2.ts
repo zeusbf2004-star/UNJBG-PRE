@@ -16,12 +16,26 @@ export interface SM2Card {
   interval: number;
   /** Próxima fecha de revisión (ISO string o timestamp) */
   nextReview: string;
+  /** Marca temporal para resolver conflictos de sincronización offline */
+  syncTimestamp?: number;
 }
 
 export interface SM2Result extends SM2Card {
   /** Calidad de la respuesta (0-5) */
   quality: number;
 }
+
+/**
+ * Determina si una revisión entrante tiene prioridad sobre el estado local actual.
+ */
+export const hasIncomingReviewPriority = (
+  currentSyncTimestamp?: number,
+  incomingSyncTimestamp?: number
+): boolean => {
+  if (typeof incomingSyncTimestamp !== 'number') return false;
+  if (typeof currentSyncTimestamp !== 'number') return true;
+  return incomingSyncTimestamp >= currentSyncTimestamp;
+};
 
 /**
  * Calcula los nuevos parámetros SM-2 basado en la calidad de la respuesta.
@@ -80,6 +94,7 @@ export const calculateSM2 = (
     repetitions,
     interval,
     nextReview: nextReview.toISOString(),
+    syncTimestamp: Date.now(),
   };
 };
 

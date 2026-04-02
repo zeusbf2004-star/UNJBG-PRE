@@ -1,42 +1,34 @@
 import { test, expect } from '@playwright/test';
+import { installE2EFixtures } from './support/fixtures';
 
 test.describe('Simulacro Flow', () => {
   
   test.beforeEach(async ({ page }) => {
-    // Inyectar TODO el estado necesario antes de que cargue cualquier script de la web
-    await page.addInitScript(() => {
-      // 1. Mock de Usuario para useAuth
-      window.__TEST_USER__ = {
-        uid: 'test-user-123',
-        email: 'test@example.com',
-        displayName: 'Test User'
-      };
+    const mockQuestions = [
+      {
+        id_pregunta: 'test_1',
+        curso: 'Fisica',
+        tema: 'Cinematica',
+        enunciado: 'Cual es la velocidad de la luz en el vacio?',
+        opciones: {
+          A: { texto: '300,000 km/s' },
+          B: { texto: '150,000 km/s' },
+          C: { texto: '100,000 km/s' },
+          D: { texto: '200,000 km/s' },
+          E: { texto: '300,000 m/s' }
+        },
+        respuesta_correcta: 'A'
+      }
+    ];
 
-      // 2. Mock de SessionStorage (Datos del examen)
-      const mockQuestions = [
-        {
-          id_pregunta: 'test_1',
-          curso: 'Física',
-          tema: 'Cinemática',
-          enunciado: '¿Cuál es la velocidad de la luz en el vacío?',
-          opciones: {
-            A: { texto: '300,000 km/s' },
-            B: { texto: '150,000 km/s' },
-            C: { texto: '100,000 km/s' },
-            D: { texto: '200,000 km/s' },
-            E: { texto: '300,000 m/s' }
-          },
-          respuesta_correcta: 'A'
-        }
-      ];
-
-      window.sessionStorage.setItem('customExamQuestions', JSON.stringify(mockQuestions));
-      window.sessionStorage.setItem('customExamTitle', 'Examen E2E');
-      window.sessionStorage.setItem('customExamDuration', '10');
-      window.sessionStorage.setItem('isSurvivalMode', 'false');
-      
-      // Limpiar localStorage para empezar limpio
-      window.localStorage.clear();
+    await installE2EFixtures(page, {
+      clearLocalStorage: true,
+      sessionStorage: {
+        customExamQuestions: JSON.stringify(mockQuestions),
+        customExamTitle: 'Examen E2E',
+        customExamDuration: '10',
+        isSurvivalMode: 'false',
+      },
     });
   });
 

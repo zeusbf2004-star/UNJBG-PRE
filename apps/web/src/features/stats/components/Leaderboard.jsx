@@ -1,21 +1,30 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../shared/config/firebase';
+import PaywallModal from '../../subscription/components/PaywallModal';
 
-export default function Leaderboard() {
+export default function Leaderboard({ user, isPremium = false, carreraObjetivo = null }) {
     const [topUsers, setTopUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [title, setTitle] = useState('Top 10 Estudiantes');
+    const [showPaywall, setShowPaywall] = useState(false);
 
     useEffect(() => {
         const fetchLeaderboard = async () => {
             try {
-                // 1. Obtener los 10 con más puntos
-                const q = query(
-                    collection(db, 'user_scores'),
-                    orderBy('puntos_totales', 'desc'),
-                    limit(10)
-                );
+                let resolvedCareer = carreraObjetivo || null;
+                if (!resolvedCareer && user?.uid) {
+                    const meDoc = await getDoc(doc(db, 'users', user.uid));
+                    resolvedCareer = meDoc.exists() ? meDoc.data()?.carrera_objetivo : null;
+                }
+
+                const baseRef = collection(db, 'leaderboard');
+                const q = resolvedCareer
+                    ? query(baseRef, where('carrera_objetivo', '==', resolvedCareer), orderBy('puntos_totales', 'desc'), limit(10))
+                    : query(baseRef, orderBy('puntos_totales', 'desc'), limit(10));
+
                 const scoresSnapshot = await getDocs(q);
+                setTitle(resolvedCareer ? 'Top 10 de Tu Carrera' : 'Top 10 Estudiantes');
                 
                 // 2. Para cada usuario del top, buscar su perfil en 'users'
                 const usersWithProfile = await Promise.all(
@@ -32,7 +41,8 @@ export default function Leaderboard() {
                             ...scoreData,
                             // Priorizar datos de 'users', sino usar fallback de 'user_scores' por compatibilidad
                             displayName: profileData.displayName || scoreData.displayName || 'Estudiante',
-                            photoURL: profileData.photoURL || scoreData.photoURL || null
+                            photoURL: profileData.photoURL || scoreData.photoURL || null,
+                            carrera_objetivo: profileData.carrera_objetivo || scoreData.carrera_objetivo || null,
                         };
                     })
                 );
@@ -46,7 +56,7 @@ export default function Leaderboard() {
         };
 
         fetchLeaderboard();
-    }, []);
+    }, [user?.uid, carreraObjetivo]);
 
     if (isLoading) {
         return (
@@ -59,17 +69,17 @@ export default function Leaderboard() {
     }
 
     return (
-        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
+        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm relative">
             <div className="p-6 border-b border-slate-50 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     <svg className="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
-                    Top 10 Estudiantes
+                    {title}
                 </h3>
             </div>
 
-            <div className="divide-y divide-slate-50">
+            <div className={`divide-y divide-slate-50 ${!isPremium ? 'blur-sm select-none pointer-events-none' : ''}`}>
                 {topUsers.length === 0 ? (
                     <div className="p-10 text-center text-slate-400">
                         <p>No hay datos disponibles aún.</p>
@@ -124,6 +134,23 @@ export default function Leaderboard() {
             <div className="p-4 bg-slate-50/50 text-center">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sigue estudiando para subir puestos</p>
             </div>
+
+            {!isPremium && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[2px]">
+                    <div className="text-center p-5 bg-white/90 border border-slate-100 rounded-2xl shadow-lg max-w-[220px]">
+                        <p className="text-xs font-black text-slate-700 uppercase tracking-widest mb-1">Ranking Premium</p>
+                        <p className="text-[11px] text-slate-500 mb-3">Desbloquea el top real de tu competencia por carrera.</p>
+                        <button
+                            onClick={() => setShowPaywall(true)}
+                            className="w-full px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all"
+                        >
+                            Ver Completo
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} reason="stats" />
         </div>
     );
 }

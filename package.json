@@ -12,8 +12,12 @@
     "build": "npm run build -w apps/web",
     "lint": "npm run lint -w apps/web",
     "preview": "npm run preview -w apps/web",
+    "icons:generate": "node scripts/generate-pwa-icons.mjs",
     "deploy:functions": "npm run deploy -w apps/functions",
-    "deploy:hosting": "firebase deploy --only hosting --config firebase/firebase.json",
-    "deploy:rules": "firebase deploy --only firestore:rules --config firebase/firebase.json"
+    "deploy:hosting": "firebase deploy --only hosting --config firebase.json",
+    "deploy:rules": "firebase deploy --only firestore:rules --config firebase.json"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5"
   }
 }

@@ -52,6 +52,11 @@ export const updatePoints = onCall(
     const userId = request.auth.uid;
     const { puntos, curso, tipo, desglose = {}, metadata = {} } = request.data;
 
+    const profileDoc = await db.doc(`users/${userId}`).get();
+    const profileData = profileDoc.exists ? profileDoc.data() : {};
+    const carreraObjetivo = profileData?.carrera_objetivo || null;
+    const canalObjetivo = profileData?.canal_objetivo || null;
+
     // Validaciones
     if (typeof puntos !== 'number' || puntos < 0 || puntos > 100) {
       throw new HttpsError('invalid-argument', 'Puntos debe ser un número entre 0 y 100.');
@@ -150,6 +155,8 @@ export const updatePoints = onCall(
         ultima_actividad: now,
         nivel: nuevoNivel,
         titulos: nuevosTitulos,
+        carrera_objetivo: carreraObjetivo,
+        canal_objetivo: canalObjetivo,
         fecha_actualizacion: now,
       });
     } else {
@@ -164,6 +171,14 @@ export const updatePoints = onCall(
         fecha_actualizacion: now,
       };
 
+      if (carreraObjetivo) {
+        updatePayload.carrera_objetivo = carreraObjetivo;
+      }
+
+      if (canalObjetivo) {
+        updatePayload.canal_objetivo = canalObjetivo;
+      }
+
       if (curso) {
         updatePayload[`puntos_por_curso.${curso}`] = FieldValue.increment(puntosFinales);
       }
@@ -172,16 +187,16 @@ export const updatePoints = onCall(
     }
 
     // 6. Actualizar leaderboard (metadata para display)
-    if (metadata.displayName) {
-      await db.doc(`leaderboard/${userId}`).set({
-        displayName: metadata.displayName,
-        photoURL: metadata.photoURL || null,
-        puntos_totales: nuevosPuntosTotales,
-        nivel: nuevoNivel,
-        racha_actual: nuevaRacha,
-        ultima_actividad: now,
-      }, { merge: true });
-    }
+    await db.doc(`leaderboard/${userId}`).set({
+      displayName: metadata.displayName || profileData?.displayName || null,
+      photoURL: metadata.photoURL || profileData?.photoURL || null,
+      puntos_totales: nuevosPuntosTotales,
+      nivel: nuevoNivel,
+      racha_actual: nuevaRacha,
+      carrera_objetivo: carreraObjetivo,
+      canal_objetivo: canalObjetivo,
+      ultima_actividad: now,
+    }, { merge: true });
 
     return {
       puntosGanados: puntosFinales,

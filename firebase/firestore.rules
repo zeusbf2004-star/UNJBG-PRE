@@ -137,6 +137,27 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ─── Percentiles semanales ───────────────────────────────────────────────
+
+    match /user_percentiles/{userId}/weekly/{docId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false;
+    }
+
+    match /career_percentiles/{docId} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    // ─── Resumen de usuario (lectura barata para dashboard) ───────────────────
+
+    match /user_summaries/{userId} {
+      // El dueño y admin pueden leer su resumen
+      allow read: if isOwner(userId) || isAdmin();
+      // Escritura solo desde Cloud Functions (Admin SDK)
+      allow write: if false;
+    }
+
     // ─── Estadísticas de carreras (datos históricos de ingreso) ───────────────
 
     match /carreras_stats/{carreraId} {

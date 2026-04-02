@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, increment, getDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, increment, getDoc, query, where, documentId } from 'firebase/firestore';
 import { db, auth } from '../../../shared/config/firebase';
 import { calculateSM2 } from '@unjbg-pre/shared/algorithms/sm2';
 import { updatePoints } from '../../gamification/lib/gamification';
+import { createPerfTrace, estimatePayloadKB } from '../../../shared/lib/perfMetrics';
+
+const chunk = (arr, size) => {
+    const chunks = [];
+    for (let i = 0; i < arr.length; i += size) {
+        chunks.push(arr.slice(i, i + size));
+    }
+    return chunks;
+};
 
 export function useFlashcards() {
     const [flashcards, setFlashcards] = useState([]);
@@ -13,10 +22,12 @@ export function useFlashcards() {
     useEffect(() => {
         const loadCards = async () => {
             const userId = auth.currentUser?.uid;
+            const trace = createPerfTrace('flashcards.session.load', { userId });
             
             if (!userId) {
                 console.warn("Usuario no autenticado. No se pueden cargar flashcards.");
                 setIsLoading(false);
+                trace.end('empty', { reason: 'unauthenticated' });
                 return;
             }
 
@@ -28,6 +39,7 @@ export function useFlashcards() {
                 if (!subSnap.exists()) {
                     setHasSubscriptions(false);
                     setIsLoading(false);
+                    trace.end('empty', { reason: 'no_subscriptions_doc' });
                     return;
                 }
 
@@ -36,27 +48,69 @@ export function useFlashcards() {
                 if (subscribed_courses.length === 0 && subscribed_topics.length === 0) {
                     setHasSubscriptions(false);
                     setIsLoading(false);
+                    trace.end('empty', { reason: 'subscriptions_empty' });
                     return;
                 }
 
                 setHasSubscriptions(true);
 
-                // 2. Fetch all available flashcards globally
-                // NOTA: Firestore no permite OR entre diferentes campos con el operador 'in' de forma eficiente si hay muchos temas.
-                // Cargamos las flashcards y filtramos en memoria por ahora, o hacemos queries separadas.
-                // Para < 500 tarjetas, filtrar en memoria es aceptable y más flexible.
-                const flashcardsSnapshot = await getDocs(collection(db, "flashcards"));
-                let allFlashcards = flashcardsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // 2. Cargar tarjetas solo de cursos/temas suscritos (evita full scan global)
+                const cardsById = new Map();
 
-                // Filtrar por suscripciones
-                allFlashcards = allFlashcards.filter(card => {
-                    const isCourseSubscribed = subscribed_courses.includes(card.curso);
-                    const isTopicSubscribed = subscribed_topics.includes(card.temaId) || subscribed_topics.includes(card.tema); // Fallback a tema string
-                    return isCourseSubscribed || isTopicSubscribed;
+                const courseQueries = subscribed_courses.map((curso) =>
+                    getDocs(query(collection(db, 'flashcards'), where('curso', '==', curso)))
+                );
+
+                const topicChunks = chunk(subscribed_topics, 10);
+                const topicQueries = topicChunks.map((topicGroup) =>
+                    getDocs(query(collection(db, 'flashcards'), where('temaId', 'in', topicGroup)))
+                );
+
+                const topicMetadataQueries = topicChunks.map((topicGroup) =>
+                    getDocs(query(collection(db, 'lecciones'), where(documentId(), 'in', topicGroup)))
+                );
+
+                const [courseSnapshots, topicSnapshots, topicMetadataSnapshots] = await Promise.all([
+                    Promise.all(courseQueries),
+                    Promise.all(topicQueries),
+                    Promise.all(topicMetadataQueries),
+                ]);
+
+                courseSnapshots.forEach((snap) => {
+                    snap.forEach((d) => cardsById.set(d.id, { id: d.id, ...d.data() }));
                 });
+
+                topicSnapshots.forEach((snap) => {
+                    snap.forEach((d) => cardsById.set(d.id, { id: d.id, ...d.data() }));
+                });
+
+                const topicNames = [];
+                topicMetadataSnapshots.forEach((snap) => {
+                    snap.forEach((d) => {
+                        const tema = d.data()?.tema;
+                        if (tema) topicNames.push(tema);
+                    });
+                });
+
+                const topicNameChunks = chunk([...new Set(topicNames)], 10);
+                const topicNameQueries = topicNameChunks.map((names) =>
+                    getDocs(query(collection(db, 'flashcards'), where('tema', 'in', names)))
+                );
+
+                const topicNameSnapshots = await Promise.all(topicNameQueries);
+                topicNameSnapshots.forEach((snap) => {
+                    snap.forEach((d) => cardsById.set(d.id, { id: d.id, ...d.data() }));
+                });
+
+                let allFlashcards = Array.from(cardsById.values());
 
                 if (allFlashcards.length === 0) {
                     setIsLoading(false);
+                    trace.end('empty', {
+                        reason: 'no_flashcards_for_subscriptions',
+                        subscribedCourses: subscribed_courses.length,
+                        subscribedTopics: subscribed_topics.length,
+                    });
                     return;
                 }
 
@@ -100,8 +154,16 @@ export function useFlashcards() {
                 dueCards = dueCards.sort(() => Math.random() - 0.5);
 
                 setFlashcards(dueCards);
+                trace.end('ok', {
+                    subscribedCourses: subscribed_courses.length,
+                    subscribedTopics: subscribed_topics.length,
+                    cardsLoaded: allFlashcards.length,
+                    dueCards: dueCards.length,
+                    payloadKB: estimatePayloadKB({ allFlashcards, dueCards }),
+                });
             } catch (error) {
                 console.error("Error cargando flashcards:", error);
+                trace.end('error', { error: String(error?.message || error) });
             } finally {
                 setIsLoading(false);
             }
@@ -115,9 +177,15 @@ export function useFlashcards() {
 
         const currentCard = flashcards[currentIndex];
         const userId = auth.currentUser?.uid;
+        const trace = createPerfTrace('flashcards.session.answer', {
+            userId,
+            cardId: currentCard?.id,
+            quality,
+        });
         
         if (!userId) {
             console.error("Usuario no autenticado al procesar la respuesta.");
+            trace.end('error', { reason: 'unauthenticated' });
             return;
         }
         
@@ -170,8 +238,15 @@ export function useFlashcards() {
                     photoURL: auth.currentUser?.photoURL
                 }
             });
+            trace.end('ok', {
+                estado: progressData.estado,
+                nextIntervalDays: progressData.interval,
+                payloadKB: estimatePayloadKB(progressData),
+                estimatedWrites: 3,
+            });
         } catch (error) {
             console.error("Error guardando progreso de la tarjeta:", error);
+            trace.end('error', { error: String(error?.message || error) });
         }
 
         // Avanzar a la siguiente tarjeta localmente
